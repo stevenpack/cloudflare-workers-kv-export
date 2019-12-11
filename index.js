@@ -1,27 +1,34 @@
-const toml = require('toml');
-const fs = require('fs');
-const axios = require('axios');
-
-let runner = new ExportRunner();
-runner.execute(process.argv)
-    .then(res => console.log(res))
-    .catch(e => console.error(e));
-
 
 class ExportRunner {
     constructor() {}
 
     parseConf(args) {
-        let configPath = args[2];
-        console.info(configPath);
-        let contents = fs.readFileSync(configPath);
-        let conf = toml.parse(contents);
-        console.debug(JSON.stringify(conf));
-        return conf;
+        try {
+            console.debug("Parsing args...");
+            if (process.argv.length < 3 || !args[2]) {
+                console.log("Usage: node index.js <config.toml>");
+                process.exit(1);
+            }
+            let configPath = args[2];              
+            console.info(`Reading config from ${configPath}`);
+            const fs = require('fs');
+            let contents = fs.readFileSync(configPath);
+            console.info(`Parsing...`);
+            const toml = require('toml');
+            let conf = toml.parse(contents);
+            console.debug(JSON.stringify(conf));
+            console.debug("OK");
+            return conf;    
+        } catch (e) {
+            console.error("Failed to initialize");
+            console.error(e);
+            process.exit(1);
+        }
     }
 
     validate(conf) {
-        if (!conf.accountId) {
+        console.info("Validating...");
+        if (!conf["account_id"]) {
             console.error(`accountId required`);
             return false;
         }
@@ -43,18 +50,21 @@ class ExportRunner {
             const defaultFilename = "kv.db";
             console.warn(`Sqlite file not found. Defaulting to ${defaultFilename}`);
         }
+        console.debug("OK");
+        return conf;
     }
 
     async execute(args) {
-        //TODO: parseArgs
-        //TODO: validate, accountId, kv-namespaces, sqlitefilename        
-        let conf = this.parse(args);
+        let conf = this.parseConf(args);
+        if (!this.validate(conf)) {
+            return false;
+        }
         let namespaces = conf["kv-namespaces"];
         let destination = new SqliteDestination(conf.filename);
         await destination.init(namespaces);
         
         for (let namespaceConf of namespaces) {
-            let namespace = new Namespace(conf.accountId, namespaceConf.id, namespaceConf.title);
+            let namespace = new Namespace(conf["account_id"], namespaceConf.id, namespaceConf.title);
             let keys = namespace.getKeys(namespaceId);
             for (let key of keys) {
                 let val = namespace.getValue(key);
@@ -65,39 +75,58 @@ class ExportRunner {
 }
 
 class Namespace {
+    
     constructor(accountId, namespaceId, title) {
         this.accountId = accountId;
         this.namespaceId = namespaceId;
         this.title = title;
-        this.baseUrl = `https://api.cloudflare.com/client/v4/accounts/${conf.accountId}`;
+        this.baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}`;
+        this.axios = require('axios');
     }
 
     async getKeys() {
 
         let listKeysUrl = `${this.baseUrl}/${this.id}/keys`;
-        let keysResult = await axios.get(listKeysUrl);
+        let keysResult = await this.axios.get(listKeysUrl);
         let keys = keysResult.data;
         return keys;
     }
 
     async getValue(key) {
         let getValueUrl = `${this.baseUrl}/storage/kv/namespaces/${this.id}/values/${key}`;
-        let valueResult = await axios.get(getValueUrl);
+        let valueResult = await this.axios.get(getValueUrl);
         let val = valueResult.data;
         return val;
     }
 }
 
 class SqliteDestination {
-    constructor() {        
+    constructor(filename) {        
+        this.filename = filename;
     }
 
-    async init(keys) {
-        //sqlite: Create file if not exists
+    async init(namespaces) {
+        const fs = require('fs');
+        if (!fs.existsSync(this.filename)) {
+            console.log(`${this.filename} does not exist. Creating...`);
+            //sqlite: create
+        }
+        //sqlite: Connect
         //sqlite: Create tables if not exist
+        for (let namespace of namespaces) {
+            console.debug(`Creating table ${namespace.title} if not exist`);
+        }
     }
     async sync(key, val) {
         //sqlite: Insert or update value
+        console.debug(`Writing ${key}:${val.substring(0, Math.min(val.length, 100))}`);
+
     }
 
 }
+
+let runner = new ExportRunner();
+runner.execute(process.argv)
+    .then(res => console.log(res))
+    .catch(e => console.error(e));
+
