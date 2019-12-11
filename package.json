@@ -1,0 +1,14 @@
+{
+  "name": "workerskv-export",
+  "version": "1.0.0",
+  "description": "Export your Cloudflare Workers KV data to other stores",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "toml": "^3.0.0"
+  }
+}

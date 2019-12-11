@@ -1,0 +1,7 @@
+account_id = "xxx"
+filename = "kv.db"
+
+kv-namespaces = [
+         { title = "NAMESPACE_1", id = "yyy" },
+         { title = "NAMESPACE_2", id = "zzz" },
+]
