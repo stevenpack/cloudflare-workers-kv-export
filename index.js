@@ -64,13 +64,27 @@ class ExportRunner {
         await destination.init(namespaces);
         
         for (let namespaceConf of namespaces) {
-            let namespace = new Namespace(conf["account_id"], namespaceConf.id, namespaceConf.title);
-            let keys = namespace.getKeys(namespaceId);
-            for (let key of keys) {
-                let val = namespace.getValue(key);
-                destination.sync(key, val);
+            try {
+                console.info(`Processing ${namespaceConf.title}/${namespaceConf.id}...`);
+                let namespace = new Namespace(conf["account_id"], namespaceConf.id, namespaceConf.title);
+                let keys = namespace.getKeys(namespaceId);
+                console.info(`${keys.length} keys to process...`);
+                for (let key of keys) {
+                    try {
+                        let val = namespace.getValue(key);        
+                        await destination.sync(key, val);
+                    } catch (e) {
+                        console.warn(`Failed to write ${key}. Ignoring...`);
+                        console.warn(e);
+                    }                    
+                }
+                console.debug("OK");    
+            } catch (e) {
+                console.warn(`Failed to process namespace ${namespaceConf.title}/${namespaceConf.id}. Ignoring...`);
+                console.warn(e);
             }
         }
+        console.log("Done");
     }
 }
 
@@ -85,17 +99,20 @@ class Namespace {
     }
 
     async getKeys() {
-
+        console.info('Getting keys...');
         let listKeysUrl = `${this.baseUrl}/${this.id}/keys`;
         let keysResult = await this.axios.get(listKeysUrl);
         let keys = keysResult.data;
+        console.debug("OK");
         return keys;
     }
 
     async getValue(key) {
+        console.debug(`Getting value for ${ket}...`)
         let getValueUrl = `${this.baseUrl}/storage/kv/namespaces/${this.id}/values/${key}`;
         let valueResult = await this.axios.get(getValueUrl);
         let val = valueResult.data;
+        console.debug("OK");
         return val;
     }
 }
@@ -114,7 +131,7 @@ class SqliteDestination {
         //sqlite: Connect
         //sqlite: Create tables if not exist
         for (let namespace of namespaces) {
-            console.debug(`Creating table ${namespace.title} if not exist`);
+            console.info(`Creating table ${namespace.title} if not exist (id: ${namespace.id})`);
         }
     }
     async sync(key, val) {
@@ -125,6 +142,7 @@ class SqliteDestination {
 
 }
 
+//GO
 let runner = new ExportRunner();
 runner.execute(process.argv)
     .then(res => console.log(res))
