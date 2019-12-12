@@ -1,4 +1,5 @@
 account_id = "xxx"
+auth_email = "john@example.com"
 filename = "kv.db"
 
 kv-namespaces = [
