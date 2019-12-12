@@ -18,6 +18,7 @@ class ExportRunner {
             let conf = toml.parse(contents);
             console.debug(JSON.stringify(conf, null, 2));
             conf["api_key"] = args[3];
+            //console.debug(JSON.stringify(conf, null, 2));
             console.debug("OK");
             return conf;    
         } catch (e) {
@@ -62,7 +63,7 @@ class ExportRunner {
             //TODO: parallelize in batches
             for (let key of keys) {
                 try {
-                    let val = namespace.getValue(key);        
+                    let val = await namespace.getValue(key);        
                     await destination.sync(namespace, key, val);
                 } catch (e) {
                     console.warn(`Failed to write ${key}. Ignoring...`);
@@ -114,7 +115,7 @@ class Namespace {
     }
 
     async getKeys() {
-        let listKeysUrl = `${this.baseUrl}/${this.id}/keys`;
+        let listKeysUrl = `${this.baseUrl}/storage/kv/namespaces/${this.id}/keys`;
         console.info(`Getting keys from ${listKeysUrl}...`);
         let keysResult = await this.axios.get(listKeysUrl, {
             headers: {
@@ -122,7 +123,8 @@ class Namespace {
                 "X-Auth-Key": this.apiKey
             }
         });
-        let keys = keysResult.data;
+        console.debug(JSON.stringify(keysResult.data), null, 2);
+        let keys = keysResult.data.result.map(item => item.name);
         if (keys.length >= 1000) {
             console.warn("Paging > 1000 records not supported");
         }
@@ -134,15 +136,18 @@ class Namespace {
     async getValue(key) {
         console.debug(`Getting value for ${key}...`)
         let getValueUrl = `${this.baseUrl}/storage/kv/namespaces/${this.id}/values/${key}`;
+        console.info(getValueUrl);
         let valueResult = await this.axios.get(getValueUrl, {
             headers: {
                 "X-Auth-Email": this.email,
                 "X-Auth-Key": this.apiKey
             }
         });
+        // console.debug(JSON.stringify(valueResult.data, null, 2));
+        // process.exit(0);        
         let val = valueResult.data;
         console.debug("OK");
-        return val;
+        return JSON.stringify(val, null, 2);
     }
 }
 
@@ -170,10 +175,9 @@ class SqliteDestination {
             this.db = new sqlite3.Database(this.filename, (e) => {
                 if (e) {
                     console.error(e);
-                } else {
-                    console.info(`Database ${exists ? "opened" : "created" } at ${this.filename}`);
                 }
             });
+            console.info(`Database ${exists ? "opened" : "created" } at ${this.filename}`);
             this.db.serialize(() => {
                 //sqlite: Create tables if not exist
                 for (let namespace of namespaces) {
@@ -190,13 +194,18 @@ class SqliteDestination {
     }
     async sync(namespace, key, val) {
         let table = namespace.title;
-        //sqlite: Insert or update value
-        console.debug(`Writing ${table} --> ${key}:${val.substring(0, Math.min(val.length, 100))}`);
+        console.debug(`Writing ${table} --> ${key}:${val}`);
         var stmt = this.db.prepare(`INSERT OR REPLACE INTO ${table} (key, val) VALUES (?,?)`);
         stmt.run(key, val);
         return new Promise((resolve, reject) => {
-            stmt.finalize(e => console.info(e || "stmt finalized"));
-            resolve();
+            stmt.finalize(e => {
+                if (e) {
+                    reject(e);
+                } else {
+                    console.debug("Written");
+                    resolve();
+                }
+            });
         })
     }
 
@@ -207,6 +216,7 @@ class SqliteDestination {
                     if (e) {
                         reject(e);
                     } else {
+                        console.info("DB closed");
                         resolve()
                     }
                 });

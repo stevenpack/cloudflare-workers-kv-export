@@ -39,6 +39,7 @@ async function sqlIntegrationTest() {
         // assert(row.key === "KEY1");
         // assert(row.val === "VAL1");
     });
+    testDb.close();
 }
 
 async function namespaceUnitTest() {
@@ -73,10 +74,10 @@ async function namespaceUnitTest() {
     //assert(val === "some val");
 }
 
-namespaceUnitTest()
-    .catch(e => console.error(e))
-    .finally(() => console.log("done"));
-
-// sqlIntegrationTest()
+// namespaceUnitTest()
 //     .catch(e => console.error(e))
 //     .finally(() => console.log("done"));
+
+sqlIntegrationTest()
+    .catch(e => console.error(e))
+    .finally(() => console.log("done"));
