@@ -1,5 +1,9 @@
 const assert = require('assert');
-describe('Email Service', function() {
+
+/**
+ * Not full coverage, but exercises most code paths
+ */
+describe('Export', function() {
     
     it('Can write to sqlite', async function() {
         const fs = require('fs');
