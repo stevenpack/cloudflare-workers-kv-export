@@ -1,3 +1,5 @@
 node_modules
 private
 kv.db
+test/test.db
+test.db

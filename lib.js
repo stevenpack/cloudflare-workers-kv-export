@@ -141,7 +141,8 @@ class Namespace {
             headers: {
                 "X-Auth-Email": this.email,
                 "X-Auth-Key": this.apiKey
-            }
+            },
+            responseType: "text"
         });
         // console.debug(JSON.stringify(valueResult.data, null, 2));
         // process.exit(0);        
