@@ -89,7 +89,7 @@ class ExportRunner {
         let promises = [];
         for (let namespaceConf of namespaces) {
             console.info(`Processing ${namespaceConf.title}/${namespaceConf.id}...`);
-            let namespace = new Namespace(conf["account_id"], namespaceConf.id, namespaceConf.title, conf["auth_email"], conf["api_key"]);
+            let namespace = new Namespace(conf["account_id"], namespaceConf.id, namespaceConf.title, namespaceConf.values, conf["auth_email"], conf["api_key"]);
             let p = this.syncNamespace(namespace, destination);
             promises.push(p);
         }
@@ -104,36 +104,50 @@ class ExportRunner {
  */
 class Namespace {
     
-    constructor(accountId, id, title, email, apiKey, axiosImpl) {
+    constructor(accountId, id, title, values, email, apiKey, axiosImpl) {
         this.accountId = accountId;
         this.id = id;
         this.title = title;
         this.email = email;
+        this.values = values;
         this.apiKey = apiKey;
         this.baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}`;
         this.axios = axiosImpl || require('axios');
     }
 
     async getKeys() {
-        let listKeysUrl = `${this.baseUrl}/storage/kv/namespaces/${this.id}/keys`;
-        console.info(`Getting keys from ${listKeysUrl}...`);
-        let keysResult = await this.axios.get(listKeysUrl, {
-            headers: {
-                "X-Auth-Email": this.email,
-                "X-Auth-Key": this.apiKey
-            }
-        });
-        console.debug(JSON.stringify(keysResult.data), null, 2);
-        let keys = keysResult.data.result.map(item => item.name);
-        if (keys.length >= 1000) {
-            console.warn("Paging > 1000 records not supported");
-        }
+
+        let cursor = "";
+        let keys = [];
+        let batchKeys = null;
+        let limit = 1000;
+        do {
+            let listKeysUrl = `${this.baseUrl}/storage/kv/namespaces/${this.id}/keys?${limit}=1000&cursor=${cursor}`;
+            console.info(`Getting keys from ${listKeysUrl}...`);
+            let keysResult = await this.axios.get(listKeysUrl, {
+                headers: {
+                    "X-Auth-Email": this.email,
+                    "X-Auth-Key": this.apiKey
+                }
+            });
+            // console.debug(JSON.stringify(keysResult.data), null, 2);
+            // console.debug(JSON.stringify(keysResult.data.result_info), null, 2);
+            cursor = keysResult.data.result_info.cursor;
+            console.log("Cursor present. Will paginate...");
+            batchKeys = keysResult.data.result.map(item => item.name);
+            keys = keys.concat(batchKeys);
+            console.log(`Current keys=${keys.length}`);
+        } while (cursor != null && batchKeys.length === limit)
         console.info(`Got ${keys.length} keys`);
         console.debug("OK");
         return keys;
     }
 
     async getValue(key) {
+        if (this.values == "false") {
+            console.debug("values flag is false. Skipping values");
+            return null;
+        }
         console.debug(`Getting value for ${key}...`)
         let getValueUrl = `${this.baseUrl}/storage/kv/namespaces/${this.id}/values/${key}`;
         console.info(getValueUrl);
@@ -183,7 +197,7 @@ class SqliteDestination {
                 //sqlite: Create tables if not exist
                 for (let namespace of namespaces) {
                     console.info(`Creating table ${namespace.title} if not exist (id: ${namespace.id})`);
-                    this.db.run(`CREATE TABLE IF NOT EXISTS ${namespace.title} (key TEXT, val TEXT)`);
+                    this.db.run(`CREATE TABLE IF NOT EXISTS ${namespace.title} (key TEXT CONSTRAINT PK_key PRIMARY KEY, val TEXT)`);
                 }              
             });
         } catch (e) {
@@ -196,6 +210,7 @@ class SqliteDestination {
     async sync(namespace, key, val) {
         let table = namespace.title;
         console.debug(`Writing ${table} --> ${key}:${val}`);
+        //TODO: Make the key primary key so things get updated
         var stmt = this.db.prepare(`INSERT OR REPLACE INTO ${table} (key, val) VALUES (?,?)`);
         stmt.run(key, val);
         return new Promise((resolve, reject) => {
