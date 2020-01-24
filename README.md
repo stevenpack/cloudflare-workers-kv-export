@@ -21,6 +21,16 @@ kv-namespaces = [
          { title = "BIG_NAMESPACE_2", id = "zzz", values = "false" },
 ]
 ```
+
+Once you've exported your data, you can query in sqlite.
+
+```
+SELECT DISTINCT json_extract(json(val), '$.subscriptions[0].bookId') as bookId
+FROM ACCOUNTS
+where bookId is not NULL
+```
+
+
 ## Features
 - Creates a table in a local sqlite db for each KV Namespace you specify in the toml
 - Paginates keys for namespaces with > 1000 keys
