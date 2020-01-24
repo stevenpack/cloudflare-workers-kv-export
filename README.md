@@ -22,7 +22,9 @@ kv-namespaces = [
 ]
 ```
 
-Once you've exported your data, you can query in sqlite.
+Once you've exported your data, you can query in sqlite using the `json` function.
+
+For example:
 
 ```
 SELECT DISTINCT json_extract(json(val), '$.subscriptions[0].bookId') as bookId
