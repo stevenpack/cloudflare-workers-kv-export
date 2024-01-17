@@ -1,4 +1,3 @@
-
 class ExportRunner {
     constructor() {}
 
@@ -9,18 +8,18 @@ class ExportRunner {
                 console.log("Usage: node index.js <config.toml> <apiKey>");
                 process.exit(1);
             }
-            let configPath = args[2];              
+            let configPath = args[2];
             console.info(`Reading config from ${configPath}`);
-            const fs = require('fs');
+            const fs = require("fs");
             let contents = fs.readFileSync(configPath);
             console.info(`Parsing...`);
-            const toml = require('toml');
+            const toml = require("toml");
             let conf = toml.parse(contents);
             console.debug(JSON.stringify(conf, null, 2));
             conf["api_key"] = args[3];
             //console.debug(JSON.stringify(conf, null, 2));
             console.debug("OK");
-            return conf;    
+            return conf;
         } catch (e) {
             console.error("Failed to initialize");
             console.error(e);
@@ -43,14 +42,16 @@ class ExportRunner {
         let namespaces = conf["kv-namespaces"];
         for (let namespace of namespaces) {
             if (!namespace.id) {
-                console.error('id required on all namespace elements');
+                console.error("id required on all namespace elements");
                 return false;
             }
         }
 
         if (!conf.filename) {
             const defaultFilename = "kv.db";
-            console.warn(`Sqlite file not found. Defaulting to ${defaultFilename}`);
+            console.warn(
+                `Sqlite file not found. Defaulting to ${defaultFilename}`
+            );
         }
         console.debug("OK");
         return conf;
@@ -63,16 +64,18 @@ class ExportRunner {
             //TODO: parallelize in batches
             for (let key of keys) {
                 try {
-                    let val = await namespace.getValue(key);        
+                    let val = await namespace.getValue(key);
                     await destination.sync(namespace, key, val);
                 } catch (e) {
                     console.warn(`Failed to write ${key}. Ignoring...`);
                     console.warn(e);
-                }                    
+                }
             }
-            console.debug(`${namespace.title} complete`);    
+            console.debug(`${namespace.title} complete`);
         } catch (e) {
-            console.warn(`Failed to process namespace ${namespace.title}/${namespace.id}. Ignoring...`);
+            console.warn(
+                `Failed to process namespace ${namespace.title}/${namespace.id}. Ignoring...`
+            );
             console.warn(e.message);
         }
     }
@@ -84,12 +87,21 @@ class ExportRunner {
         }
         let namespaces = conf["kv-namespaces"];
         let destination = new SqliteDestination(conf.filename);
-        destination.init(namespaces);        
-        
+        destination.init(namespaces);
+
         let promises = [];
         for (let namespaceConf of namespaces) {
-            console.info(`Processing ${namespaceConf.title}/${namespaceConf.id}...`);
-            let namespace = new Namespace(conf["account_id"], namespaceConf.id, namespaceConf.title, namespaceConf.values, conf["auth_email"], conf["api_key"]);
+            console.info(
+                `Processing ${namespaceConf.title}/${namespaceConf.id}...`
+            );
+            let namespace = new Namespace(
+                conf["account_id"],
+                namespaceConf.id,
+                namespaceConf.title,
+                namespaceConf.values,
+                conf["auth_email"],
+                conf["api_key"]
+            );
             let p = this.syncNamespace(namespace, destination);
             promises.push(p);
         }
@@ -103,7 +115,6 @@ class ExportRunner {
  * A Workers KV namespace
  */
 class Namespace {
-    
     constructor(accountId, id, title, values, email, apiKey, axiosImpl) {
         this.accountId = accountId;
         this.id = id;
@@ -112,11 +123,10 @@ class Namespace {
         this.values = values;
         this.apiKey = apiKey;
         this.baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}`;
-        this.axios = axiosImpl || require('axios');
+        this.axios = axiosImpl || require("axios");
     }
 
     async getKeys() {
-
         let cursor = "";
         let keys = [];
         let batchKeys = null;
@@ -127,17 +137,17 @@ class Namespace {
             let keysResult = await this.axios.get(listKeysUrl, {
                 headers: {
                     "X-Auth-Email": this.email,
-                    "X-Auth-Key": this.apiKey
-                }
+                    "X-Auth-Key": this.apiKey,
+                },
             });
             // console.debug(JSON.stringify(keysResult.data), null, 2);
             // console.debug(JSON.stringify(keysResult.data.result_info), null, 2);
             cursor = keysResult.data.result_info.cursor;
             console.log("Cursor present. Will paginate...");
-            batchKeys = keysResult.data.result.map(item => item.name);
+            batchKeys = keysResult.data.result.map((item) => item.name);
             keys = keys.concat(batchKeys);
             console.log(`Current keys=${keys.length}`);
-        } while (cursor != null && batchKeys.length === limit)
+        } while (cursor != null && batchKeys.length === limit);
         console.info(`Got ${keys.length} keys`);
         console.debug("OK");
         return keys;
@@ -148,18 +158,18 @@ class Namespace {
             console.debug("values flag is false. Skipping values");
             return null;
         }
-        console.debug(`Getting value for ${key}...`)
+        console.debug(`Getting value for ${key}...`);
         let getValueUrl = `${this.baseUrl}/storage/kv/namespaces/${this.id}/values/${key}`;
         console.info(getValueUrl);
         let valueResult = await this.axios.get(getValueUrl, {
             headers: {
                 "X-Auth-Email": this.email,
-                "X-Auth-Key": this.apiKey
+                "X-Auth-Key": this.apiKey,
             },
-            responseType: "text"
+            responseType: "text",
         });
         // console.debug(JSON.stringify(valueResult.data, null, 2));
-        // process.exit(0);        
+        // process.exit(0);
         let val = valueResult.data;
         console.debug("OK");
         return JSON.stringify(val, null, 2);
@@ -170,13 +180,13 @@ class Namespace {
  * Destination implemented as a Sqlite database
  */
 class SqliteDestination {
-    constructor(filename) {        
+    constructor(filename) {
         this.filename = filename;
         this.db = null;
     }
 
     init(namespaces) {
-        const fs = require('fs');
+        const fs = require("fs");
         let exists = false;
         if (!fs.existsSync(this.filename)) {
             console.info(`${this.filename} does not exist. Will create...`);
@@ -186,35 +196,42 @@ class SqliteDestination {
         }
         try {
             //Connect or create
-            const sqlite3 = require('sqlite3').verbose();
+            const sqlite3 = require("sqlite3").verbose();
             this.db = new sqlite3.Database(this.filename, (e) => {
                 if (e) {
                     console.error(e);
                 }
             });
-            console.info(`Database ${exists ? "opened" : "created" } at ${this.filename}`);
+            console.info(
+                `Database ${exists ? "opened" : "created"} at ${this.filename}`
+            );
             this.db.serialize(() => {
                 //sqlite: Create tables if not exist
                 for (let namespace of namespaces) {
-                    console.info(`Creating table ${namespace.title} if not exist (id: ${namespace.id})`);
-                    this.db.run(`CREATE TABLE IF NOT EXISTS ${namespace.title} (key TEXT CONSTRAINT PK_key PRIMARY KEY, val TEXT)`);
-                }              
+                    console.info(
+                        `Creating table ${namespace.title} if not exist (id: ${namespace.id})`
+                    );
+                    this.db.run(
+                        `CREATE TABLE IF NOT EXISTS ${namespace.title} (key TEXT CONSTRAINT PK_key PRIMARY KEY, val TEXT)`
+                    );
+                }
             });
         } catch (e) {
             console.error("Failed to init db");
             console.error(e);
         } finally {
-           
         }
     }
     async sync(namespace, key, val) {
         let table = namespace.title;
         console.debug(`Writing ${table} --> ${key}:${val}`);
         //TODO: Make the key primary key so things get updated
-        var stmt = this.db.prepare(`INSERT OR REPLACE INTO ${table} (key, val) VALUES (?,?)`);
+        var stmt = this.db.prepare(
+            `INSERT OR REPLACE INTO ${table} (key, val) VALUES (?,?)`
+        );
         stmt.run(key, val);
         return new Promise((resolve, reject) => {
-            stmt.finalize(e => {
+            stmt.finalize((e) => {
                 if (e) {
                     reject(e);
                 } else {
@@ -222,28 +239,25 @@ class SqliteDestination {
                     resolve();
                 }
             });
-        })
+        });
     }
 
     async close() {
         return new Promise((resolve, reject) => {
             if (this.db) {
-                this.db.close(e => {
+                this.db.close((e) => {
                     if (e) {
                         reject(e);
                     } else {
                         console.info("DB closed");
-                        resolve()
+                        resolve();
                     }
                 });
                 this.db = null;
             } else {
                 resolve();
             }
-        })
-       
+        });
     }
 }
-module.exports = {SqliteDestination, Namespace, ExportRunner};
-
-
+module.exports = { SqliteDestination, Namespace, ExportRunner };
